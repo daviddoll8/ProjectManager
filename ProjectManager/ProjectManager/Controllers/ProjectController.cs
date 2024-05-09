@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using ProjectManager.Data;
+using ProjectManager.Dtos.Project;
 using ProjectManager.Mappers;
 
 namespace ProjectManager.Controllers;
@@ -43,4 +45,25 @@ public class ProjectController : ControllerBase
 
         return Ok(project.ToProjectDto());
     }
+
+    [HttpPost]
+    public IActionResult Create([FromBody] CreateProjectRequestDto projectRequestDto)
+    {
+        var nonExistingTagIds = projectRequestDto.TagIds
+            .Except(_context.Tag.Select(tag => tag.Id))
+            .ToList();
+        if (nonExistingTagIds.Any())
+        {
+            return BadRequest($"Tag ID(s) {string.Join(", ", nonExistingTagIds)} do not exist in the database.");
+        }
+        
+        var projectModel = projectRequestDto.ToProjectFromCreateDto();
+
+        _context.Tag.Where(tag => projectRequestDto.TagIds.Contains(tag.Id)).Load();
+        _context.Project.Add(projectModel);
+        _context.SaveChanges();
+
+        return CreatedAtAction(nameof(GetById), new { id = projectModel.Id }, projectModel.ToProjectDto());
+    }
+    
 }
