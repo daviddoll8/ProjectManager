@@ -1,8 +1,8 @@
 ﻿using ProjectManager.Enums;
 
-namespace ProjectManager.Models;
+namespace ProjectManager.Dtos.Task;
 
-public class Task
+public class TaskDto
 {
     public Guid Id { get; set; }
 
@@ -17,6 +17,4 @@ public class Task
     public bool IsCompleted { get; set; }
     
     public TaskPriority Priority { get; set; }
-
-    public Project Project { get; set; } = null!;
 }

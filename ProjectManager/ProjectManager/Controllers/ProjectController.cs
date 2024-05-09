@@ -1,5 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using ProjectManager.Data;
+using ProjectManager.Mappers;
 
 namespace ProjectManager.Controllers;
 
@@ -17,7 +19,11 @@ public class ProjectController : ControllerBase
     [HttpGet]
     public IActionResult GetAll()
     {
-        var projects = _context.Project.ToList();
+        var projects = _context.Project
+            .Include(proj => proj.Tasks)
+            .Include(proj => proj.Tags)
+            .ToList()
+            .Select(proj => proj.ToProjectDto());
 
         return Ok(projects);
     }
@@ -25,13 +31,16 @@ public class ProjectController : ControllerBase
     [HttpGet("{id:guid}")]
     public IActionResult GetById(Guid id)
     {
-        var project = _context.Project.Find(id);
+        var project = _context.Project
+            .Include(proj => proj.Tasks)
+            .Include(proj => proj.Tags)
+            .FirstOrDefault(proj => proj.Id == id);
 
         if (project == null)
         {
             return NotFound();
         }
 
-        return Ok(project);
+        return Ok(project.ToProjectDto());
     }
 }
