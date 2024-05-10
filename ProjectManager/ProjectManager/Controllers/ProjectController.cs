@@ -4,6 +4,7 @@ using Microsoft.IdentityModel.Tokens;
 using ProjectManager.Data;
 using ProjectManager.Dtos.Project;
 using ProjectManager.Mappers;
+using ProjectManager.Models;
 
 namespace ProjectManager.Controllers;
 
@@ -19,24 +20,25 @@ public class ProjectController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll()
     {
-        var projects = _context.Project
+        var projects = await _context.Project
             .Include(proj => proj.Tasks)
             .Include(proj => proj.Tags)
-            .ToList()
-            .Select(proj => proj.ToProjectDto());
+            .ToListAsync();
+        
+        var projectDto = projects.Select(proj => proj.ToProjectDto());
 
-        return Ok(projects);
+        return Ok(projectDto);
     }
 
     [HttpGet("{id:guid}")]
-    public IActionResult GetById(Guid id)
+    public async Task<IActionResult> GetById(Guid id)
     {
-        var project = _context.Project
+        var project = await _context.Project
             .Include(proj => proj.Tasks)
             .Include(proj => proj.Tags)
-            .FirstOrDefault(proj => proj.Id == id);
+            .FirstOrDefaultAsync(proj => proj.Id == id);
 
         if (project == null)
         {
@@ -47,23 +49,87 @@ public class ProjectController : ControllerBase
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateProjectRequestDto projectRequestDto)
+    public async Task<IActionResult> Create([FromBody] CreateProjectRequestDto projectRequestDto)
     {
-        var nonExistingTagIds = projectRequestDto.TagIds
-            .Except(_context.Tag.Select(tag => tag.Id))
-            .ToList();
-        if (nonExistingTagIds.Any())
+        if (projectRequestDto.TagIds != null)
         {
-            return BadRequest($"Tag ID(s) {string.Join(", ", nonExistingTagIds)} do not exist in the database.");
+            //check for non-existing id's
+            var currentTags = await _context.Tag.Select(tag => tag.Id).ToListAsync();
+            var nonExistingTagIds = projectRequestDto.TagIds
+                .Except(currentTags)
+                .ToList();
+            if (nonExistingTagIds.Any())
+            {
+                return BadRequest($"Tag ID(s) {string.Join(", ", nonExistingTagIds)} do not exist in the database.");
+            }
+            //update the context to contain the Tag Ids that were added by the projectRequestDto
+            await _context.Tag.Where(tag => projectRequestDto.TagIds.Contains(tag.Id)).LoadAsync();
         }
-        
-        var projectModel = projectRequestDto.ToProjectFromCreateDto();
 
-        _context.Tag.Where(tag => projectRequestDto.TagIds.Contains(tag.Id)).Load();
-        _context.Project.Add(projectModel);
-        _context.SaveChanges();
+        var projectModel = projectRequestDto.ToProjectFromCreateDto();
+        
+        await _context.Project.AddAsync(projectModel);
+        await _context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = projectModel.Id }, projectModel.ToProjectDto());
     }
+
+    [HttpPut]
+    [Route("id:guid")]
+    public async Task<IActionResult> Update(Guid id, [FromBody] UpdateProjectRequestDto updateDto)
+    {
+        var projectModel = await _context.Project.FirstOrDefaultAsync(proj => proj.Id == id);
+
+        if (projectModel == null)
+        {
+            return NotFound();
+        }
+
+        projectModel.Name = updateDto.Name;
+        projectModel.Description = updateDto.Description;
+
+        if (!updateDto.TagIds.IsNullOrEmpty())
+        {
+            var currentTags = await _context.Tag.Select(tag => tag.Id).ToListAsync();
+            var nonExistingTagIds = updateDto.TagIds
+                .Except(currentTags)
+                .ToList();
+
+            if (nonExistingTagIds.Any())
+            {
+                return BadRequest($"Tag ID(s) {string.Join(", ", nonExistingTagIds)} do not exist in the database.");
+            }
+            projectModel.ProjectTags ??= new List<ProjectTag>();
+            projectModel.ProjectTags.Clear();
+            projectModel.ProjectTags
+                .AddRange(updateDto.TagIds.Select(tagId => new ProjectTag { ProjectId = id, TagId = tagId }));
+        }
+        
+        var projTagsModel = await _context.ProjectTags.Where(projTag => projTag.ProjectId == id).ToListAsync();
+        _context.ProjectTags.RemoveRange(projTagsModel);
+        await _context.SaveChangesAsync();
+        
+        await _context.Tag.Where(tag => updateDto.TagIds != null && updateDto.TagIds.Contains(tag.Id)).LoadAsync();
+        await _context.Tasks.Where(task => task.ProjectId == id).LoadAsync();
+        return Ok(projectModel.ToProjectDto());
+    }
+
+    [HttpDelete]
+    [Route("{id:guid}")]
+    public async Task<IActionResult> Delete([FromRoute] Guid id)
+    {
+        var projectModel = await _context.Project.FirstOrDefaultAsync(proj => proj.Id == id);
+
+        if (projectModel == null)
+        {
+            return NotFound();
+        }
+
+        _context.Project.Remove(projectModel);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
+    }
+    
     
 }

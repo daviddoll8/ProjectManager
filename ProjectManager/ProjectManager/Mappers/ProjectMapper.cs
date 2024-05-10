@@ -26,14 +26,10 @@ public static class ProjectMapper
             Name = projectRequestDto.Name,
             Description = projectRequestDto.Description
         };
+        project.ProjectTags = projectRequestDto.TagIds?
+            .Select(tagId => new ProjectTag { TagId = tagId, ProjectId = project.Id })
+            .ToList();
 
-        if (!projectRequestDto.TagIds.IsNullOrEmpty())
-        {
-            project.ProjectTags = projectRequestDto.TagIds
-                .Select(tagId => new ProjectTag() { ProjectId = project.Id, TagId = tagId })
-                .ToList();
-        }
-        
         return project;
     }
 }

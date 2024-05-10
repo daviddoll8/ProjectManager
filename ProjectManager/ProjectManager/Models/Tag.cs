@@ -6,7 +6,7 @@ public class Tag
 
     public string Name { get; set; } = string.Empty;
 
-    public List<Project> Projects { get; set; } = null!;
+    public List<Project>? Projects { get; set; }
     
-    public List<ProjectTag> ProjectTags { get; set; } = null!;
+    public List<ProjectTag>? ProjectTags { get; set; }
 }

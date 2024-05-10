@@ -2,7 +2,7 @@
 
 namespace ProjectManager.Dtos.Project;
 
-public class CreateProjectRequestDto
+public class UpdateProjectRequestDto
 {
     [Required(ErrorMessage = "Name is required.")]
     public string Name { get; set; }
