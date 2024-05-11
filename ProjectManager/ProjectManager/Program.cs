@@ -1,46 +1,28 @@
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
-using ProjectManager.Data;
+using ProjectManager.Extensions;
+using Repository;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.ConfigureRepositoryManager();
+builder.Services.ConfigureServiceManager();
+builder.Services.ConfigureSqlContext(builder.Configuration);
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.ConfigureSwagger();
+
+builder.Services.AddScoped<IProjectRepository, ProjectRepository>();
+
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-    });
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(options =>
-{
-    var securitySchema = new OpenApiSecurityScheme
-    {
-        Description = "Using the Authorization header with the Bearer scheme.",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        Reference = new OpenApiReference
-        {
-            Type = ReferenceType.SecurityScheme,
-            Id = "Bearer"
-        }
-    };
-
-    options.AddSecurityDefinition("Bearer", securitySchema);
-    options.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        { securitySchema, new[] { "Bearer" } }
-    });
-});
-
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-{
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-});
+    })
+    .AddApplicationPart(typeof(ProjectManager.Presentation.AssemblyReference).Assembly);
 
 var app = builder.Build();
 
